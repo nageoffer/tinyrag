@@ -1,7 +1,10 @@
 package com.nageoffer.ai.tinyrag.service;
 
 import com.nageoffer.ai.tinyrag.config.RAGProperties;
+import com.nageoffer.ai.tinyrag.model.RAGRequest;
 import com.nageoffer.ai.tinyrag.service.DashscopeRerankService.RerankItem;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -10,8 +13,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
@@ -19,7 +24,9 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.core.io.Resource;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
 public class RAGService {
@@ -30,6 +37,7 @@ public class RAGService {
     private final VectorStore vectorStore;
     private final RAGProperties ragProperties;
     private final DashscopeRerankService dashscopeRerankService;
+    private final TaskExecutor taskExecutor;
     private final Resource rewriteSystemPrompt;
     private final Resource rewriteUserPrompt;
     private final Resource answerSystemPrompt;
@@ -39,6 +47,7 @@ public class RAGService {
                       VectorStore vectorStore,
                       RAGProperties ragProperties,
                       DashscopeRerankService dashscopeRerankService,
+                      @Qualifier("RAGTaskExecutor") TaskExecutor taskExecutor,
                       @Value("classpath:/prompts/rewrite-system.st") Resource rewriteSystemPrompt,
                       @Value("classpath:/prompts/rewrite-user.st") Resource rewriteUserPrompt,
                       @Value("classpath:/prompts/answer-system.st") Resource answerSystemPrompt,
@@ -47,10 +56,37 @@ public class RAGService {
         this.vectorStore = vectorStore;
         this.ragProperties = ragProperties;
         this.dashscopeRerankService = dashscopeRerankService;
+        this.taskExecutor = taskExecutor;
         this.rewriteSystemPrompt = rewriteSystemPrompt;
         this.rewriteUserPrompt = rewriteUserPrompt;
         this.answerSystemPrompt = answerSystemPrompt;
         this.answerUserPrompt = answerUserPrompt;
+    }
+
+    public SseEmitter streamChat(RAGRequest request) {
+        SseEmitter emitter = new SseEmitter(0L);
+
+        taskExecutor.execute(() -> {
+            try {
+                RAGExecutionContext context = prepareContext(request);
+                sendEvent(emitter, "meta", Map.of("rewrittenQuestion", context.rewrittenQuestion()));
+                sendEvent(emitter, "refs", Map.of("references", context.references()));
+
+                streamAnswer(request.getQuestion(), context.rerankedDocs(),
+                        token -> sendEvent(emitter, "token", token));
+
+                sendEvent(emitter, "done", "[DONE]");
+                emitter.complete();
+            } catch (Exception ex) {
+                try {
+                    sendEvent(emitter, "error", ex.getMessage() == null ? "stream error" : ex.getMessage());
+                } catch (Exception ignored) {
+                }
+                emitter.completeWithError(ex);
+            }
+        });
+
+        return emitter;
     }
 
     public String rewriteQuestion(String originalQuestion) {
@@ -145,6 +181,24 @@ public class RAGService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
+    }
+
+    private RAGExecutionContext prepareContext(RAGRequest request) {
+        String rewritten = rewriteQuestion(request.getQuestion());
+        String kb = request.getKb();
+
+        List<Document> candidates = retrieveCandidates(rewritten, kb, ragProperties.getRetrieveTopK());
+        List<Document> reranked = rerank(request.getQuestion(), candidates, ragProperties.getRerankTopN());
+        List<String> refs = references(reranked);
+        return new RAGExecutionContext(rewritten, reranked, refs);
+    }
+
+    private void sendEvent(SseEmitter emitter, String event, Object data) {
+        try {
+            emitter.send(SseEmitter.event().name(event).data(data));
+        } catch (IOException ex) {
+            throw new IllegalStateException("SSE 发送失败", ex);
+        }
     }
 
     private List<Document> pickByRerankResults(List<Document> candidates, List<RerankItem> results, int topN) {
@@ -244,5 +298,8 @@ public class RAGService {
 
     private String escapeForFilter(String kb) {
         return kb.replace("'", "\\'");
+    }
+
+    private record RAGExecutionContext(String rewrittenQuestion, List<Document> rerankedDocs, List<String> references) {
     }
 }
