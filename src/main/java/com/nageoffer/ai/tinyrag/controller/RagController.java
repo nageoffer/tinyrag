@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.ai.document.Document;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.MediaType;
@@ -34,7 +35,7 @@ public class RAGController {
     public RAGController(RAGService ragService,
                          KnowledgeIngestionService ingestionService,
                          RAGProperties ragProperties,
-                         TaskExecutor taskExecutor) {
+                         @Qualifier("RAGTaskExecutor") TaskExecutor taskExecutor) {
         this.ragService = ragService;
         this.ingestionService = ingestionService;
         this.ragProperties = ragProperties;
