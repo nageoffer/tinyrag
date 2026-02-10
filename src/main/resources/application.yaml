@@ -1,3 +1,56 @@
+server:
+  port: 8080
+
 spring:
   application:
     name: tinyrag
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+  ai:
+    openai:
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      api-key: ${DASHSCOPE_API_KEY:your-api-key}
+      chat:
+        options:
+          model: qwen3-max
+          temperature: 0.2
+      embedding:
+        options:
+          model: text-embedding-v4
+
+    vectorstore:
+      milvus:
+        initialize-schema: true
+        collection-name: ${MILVUS_COLLECTION:tinyrag_kb}
+        database-name: ${MILVUS_DATABASE:default}
+        id-field-name: id
+        content-field-name: content
+        embedding-field-name: embedding
+        metadata-field-name: metadata
+        embedding-dimension: ${EMBEDDING_DIMENSION:1024}
+        metric-type: cosine
+        index-type: ivf-flat
+        index-parameters: '{"nlist":1024}'
+        client:
+          host: ${MILVUS_HOST:localhost}
+          port: ${MILVUS_PORT:19530}
+          username: ${MILVUS_USERNAME:root}
+          password: ${MILVUS_PASSWORD:milvus}
+
+app:
+  rag:
+    rewrite-model: qwen3-max
+    answer-model: qwen3-max
+    rerank-model: qwen3-rerank
+    rerank-endpoint: https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank
+    retrieve-top-k: 8
+    rerank-top-n: 4
+    rerank-max-document-chars: 12000
+    chunk-size: 800
+    min-chunk-size-chars: 350
+    min-chunk-length-to-embed: 10
+    max-num-chunks: 1000
