@@ -27,7 +27,7 @@
 
 ```mermaid
 flowchart LR
-    U[用户/前端页面] --> C[/api/rag/chat/stream]
+    U["用户/前端页面"] --> C["/api/rag/chat/stream"]
     C --> RW[问题改写]
     RW --> VS[Milvus 向量检索]
     VS --> RR[DashScope Rerank]
@@ -35,7 +35,7 @@ flowchart LR
     A --> SSE[SSE 流式返回]
     SSE --> U
 
-    F[上传文件] --> I[/api/rag/knowledge/upload]
+    F[上传文件] --> I["/api/rag/knowledge/upload"]
     I --> T[Tika 文本提取]
     T --> S[TokenTextSplitter 切分]
     S --> E[Embedding 向量化]
