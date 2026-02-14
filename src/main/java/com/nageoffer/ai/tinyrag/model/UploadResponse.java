@@ -11,9 +11,9 @@ public class UploadResponse {
 
     private String kb;
 
-    private int chunkCount;
+    private Integer chunkCount;
 
-    public UploadResponse(String fileName, String kb, int chunkCount) {
+    public UploadResponse(String fileName, String kb, Integer chunkCount) {
         this.fileName = fileName;
         this.kb = kb;
         this.chunkCount = chunkCount;

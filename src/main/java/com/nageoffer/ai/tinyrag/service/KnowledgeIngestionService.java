@@ -1,6 +1,7 @@
 package com.nageoffer.ai.tinyrag.service;
 
 import com.nageoffer.ai.tinyrag.model.UploadResponse;
+
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
 import org.apache.tika.Tika;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
