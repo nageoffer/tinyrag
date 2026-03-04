@@ -1,12 +1,15 @@
 package com.nageoffer.ai.tinyrag.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nageoffer.ai.tinyrag.config.RAGProperties;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Locale;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -15,14 +18,15 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 @Service
-public class DashscopeRerankService {
+public class RerankService {
 
     private final RAGProperties ragProperties;
     private final RestClient restClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final String apiKey;
 
-    public DashscopeRerankService(RAGProperties ragProperties,
-                                  @Value("${spring.ai.openai.api-key:}") String apiKey) {
+    public RerankService(RAGProperties ragProperties,
+                         @Value("${spring.ai.openai.api-key:}") String apiKey) {
         this.ragProperties = ragProperties;
         this.apiKey = apiKey;
         this.restClient = RestClient.builder().build();
@@ -33,65 +37,43 @@ public class DashscopeRerankService {
             return List.of();
         }
         if (!StringUtils.hasText(apiKey) || "your-api-key".equalsIgnoreCase(apiKey.trim())) {
-            throw new IllegalStateException("DashScope API Key 未配置，无法执行 Rerank");
+            throw new IllegalStateException("Rerank API Key 未配置，无法执行 rerank");
+        }
+        if (!StringUtils.hasText(ragProperties.getRerankEndpoint())) {
+            throw new IllegalStateException("Rerank endpoint 未配置，无法执行 rerank");
         }
 
-        String model = ragProperties.getRerankModel();
-        Map<String, Object> primaryRequest = buildRequest(query, documents, topN);
-        JsonNode body;
-        try {
-            body = callRerankApi(primaryRequest);
-        } catch (RuntimeException ex) {
-            if (!isQwen3RerankModel(model)) {
-                throw ex;
-            }
-            body = callRerankApi(buildLegacyRequest(query, documents, topN, model));
-        }
-
+        JsonNode body = callRerankApi(buildRequest(query, documents, topN));
         return parseResults(body);
     }
 
     private Map<String, Object> buildRequest(String query, List<String> documents, int topN) {
         int safeTopN = Math.max(1, Math.min(topN, documents.size()));
-        String model = ragProperties.getRerankModel();
-
-        if (isQwen3RerankModel(model)) {
-            Map<String, Object> request = new LinkedHashMap<>();
-            request.put("model", model);
-            request.put("query", query);
-            request.put("documents", documents);
-            request.put("top_n", safeTopN);
-            return request;
-        }
 
         Map<String, Object> request = new LinkedHashMap<>();
-        request.put("model", model);
-        request.put("input", Map.of("query", query, "documents", documents));
-        request.put("parameters", Map.of("return_documents", true, "top_n", safeTopN));
+        request.put("model", ragProperties.getRerankModel());
+        request.put("query", query);
+        request.put("documents", documents);
+        request.put("top_n", safeTopN);
         return request;
     }
 
-    private Map<String, Object> buildLegacyRequest(String query, List<String> documents, int topN, String model) {
-        int safeTopN = Math.max(1, Math.min(topN, documents.size()));
-        return Map.of(
-                "model", model,
-                "input", Map.of("query", query, "documents", documents),
-                "parameters", Map.of("return_documents", true, "top_n", safeTopN)
-        );
-    }
-
     private JsonNode callRerankApi(Map<String, Object> requestBody) {
-        return restClient.post()
+        String responseBody = restClient.post()
                 .uri(ragProperties.getRerankEndpoint())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(requestBody)
                 .retrieve()
-                .body(JsonNode.class);
-    }
-
-    private boolean isQwen3RerankModel(String model) {
-        return model != null && model.toLowerCase(Locale.ROOT).startsWith("qwen3-rerank");
+                .body(String.class);
+        if (!StringUtils.hasText(responseBody)) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(responseBody);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Rerank response parse failed", ex);
+        }
     }
 
     private List<RerankItem> parseResults(JsonNode root) {
@@ -99,9 +81,9 @@ public class DashscopeRerankService {
             return List.of();
         }
 
-        JsonNode results = root.path("output").path("results");
+        JsonNode results = root.path("results");
         if (!results.isArray()) {
-            results = root.path("results");
+            results = root.path("output").path("results");
         }
         if (!results.isArray()) {
             return List.of();

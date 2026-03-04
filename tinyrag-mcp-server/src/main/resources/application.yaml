@@ -1,0 +1,14 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: tinyrag-mcp-server
+  ai:
+    mcp:
+      server:
+        name: tinyrag-mcp-server
+        version: 1.0.0
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp

@@ -1,8 +1,10 @@
 package com.nageoffer.ai.tinyrag.config;
 
+import io.modelcontextprotocol.client.McpSyncClient;
 import org.apache.tika.Tika;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -10,13 +12,20 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.List;
+
 @Configuration
 @EnableConfigurationProperties(RAGProperties.class)
 public class RAGConfiguration {
 
     @Bean
-    public ChatClient chatClient(ChatModel chatModel) {
-        return ChatClient.create(chatModel);
+    public ChatClient chatClient(ChatModel chatModel, List<McpSyncClient> mcpSyncClients) {
+        SyncMcpToolCallbackProvider toolCallbackProvider = SyncMcpToolCallbackProvider.builder()
+                .mcpClients(mcpSyncClients)
+                .build();
+        return ChatClient.builder(chatModel)
+                .defaultToolCallbacks(toolCallbackProvider)
+                .build();
     }
 
     @Bean

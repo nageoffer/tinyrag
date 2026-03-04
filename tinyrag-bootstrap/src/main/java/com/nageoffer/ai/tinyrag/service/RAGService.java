@@ -2,7 +2,7 @@ package com.nageoffer.ai.tinyrag.service;
 
 import com.nageoffer.ai.tinyrag.config.RAGProperties;
 import com.nageoffer.ai.tinyrag.model.RAGRequest;
-import com.nageoffer.ai.tinyrag.service.DashscopeRerankService.RerankItem;
+import com.nageoffer.ai.tinyrag.service.RerankService.RerankItem;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -14,8 +14,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.ai.chat.client.ChatClient;
@@ -28,15 +27,14 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+@Slf4j
 @Service
 public class RAGService {
-
-    private static final Logger log = LoggerFactory.getLogger(RAGService.class);
 
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
     private final RAGProperties ragProperties;
-    private final DashscopeRerankService dashscopeRerankService;
+    private final RerankService rerankService;
     private final TaskExecutor taskExecutor;
     private final Resource rewriteSystemPrompt;
     private final Resource rewriteUserPrompt;
@@ -46,7 +44,7 @@ public class RAGService {
     public RAGService(ChatClient chatClient,
                       VectorStore vectorStore,
                       RAGProperties ragProperties,
-                      DashscopeRerankService dashscopeRerankService,
+                      RerankService rerankService,
                       @Qualifier("RAGTaskExecutor") TaskExecutor taskExecutor,
                       @Value("classpath:/prompts/rewrite-system.st") Resource rewriteSystemPrompt,
                       @Value("classpath:/prompts/rewrite-user.st") Resource rewriteUserPrompt,
@@ -55,7 +53,7 @@ public class RAGService {
         this.chatClient = chatClient;
         this.vectorStore = vectorStore;
         this.ragProperties = ragProperties;
-        this.dashscopeRerankService = dashscopeRerankService;
+        this.rerankService = rerankService;
         this.taskExecutor = taskExecutor;
         this.rewriteSystemPrompt = rewriteSystemPrompt;
         this.rewriteUserPrompt = rewriteUserPrompt;
@@ -90,16 +88,10 @@ public class RAGService {
     }
 
     public String rewriteQuestion(String originalQuestion) {
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .model(ragProperties.getRewriteModel())
-                .temperature(0.1)
-                .build();
-
         String rewrite = chatClient.prompt()
                 .system(system -> system.text(rewriteSystemPrompt))
                 .user(u -> u.text(rewriteUserPrompt)
                         .param("question", originalQuestion))
-                .options(options)
                 .call()
                 .content();
 
@@ -144,13 +136,13 @@ public class RAGService {
         }
 
         try {
-            List<RerankItem> rerankResults = dashscopeRerankService.rerank(originalQuestion, candidateTexts, safeTopN);
+            List<RerankItem> rerankResults = rerankService.rerank(originalQuestion, candidateTexts, safeTopN);
             List<Document> reranked = pickByRerankResults(validCandidates, rerankResults, safeTopN);
             if (!reranked.isEmpty()) {
                 return reranked;
             }
         } catch (Exception ex) {
-            log.warn("DashScope rerank failed, fallback to vector score. reason={}", ex.getMessage());
+            log.warn("Rerank failed, fallback to vector score. reason={}", ex.getMessage());
         }
 
         return fallbackByVectorScore(validCandidates, safeTopN);
@@ -158,17 +150,11 @@ public class RAGService {
 
     public void streamAnswer(String question, List<Document> rerankedDocs, Consumer<String> tokenConsumer) {
         String context = buildContext(rerankedDocs);
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .model(ragProperties.getAnswerModel())
-                .temperature(0.2)
-                .build();
-
         chatClient.prompt()
                 .system(system -> system.text(answerSystemPrompt))
                 .user(u -> u.text(answerUserPrompt)
                         .param("question", question)
                         .param("context", context))
-                .options(options)
                 .stream()
                 .content()
                 .doOnNext(tokenConsumer)
@@ -259,7 +245,7 @@ public class RAGService {
 
     private String referenceFromMetadata(Document doc) {
         Map<String, Object> metadata = doc.getMetadata();
-        if (metadata == null || metadata.isEmpty()) {
+        if (metadata.isEmpty()) {
             return null;
         }
 

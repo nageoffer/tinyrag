@@ -15,12 +15,6 @@ import org.springframework.validation.annotation.Validated;
 public class RAGProperties {
 
     @NotBlank
-    private String rewriteModel;
-
-    @NotBlank
-    private String answerModel;
-
-    @NotBlank
     private String rerankModel;
 
     @NotBlank

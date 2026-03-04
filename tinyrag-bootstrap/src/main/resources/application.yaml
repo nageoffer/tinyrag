@@ -12,15 +12,15 @@ spring:
 
   ai:
     openai:
-      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
-      api-key: ${DASHSCOPE_API_KEY:your-api-key}
+      base-url: ${SILICONFLOW_BASE_URL:https://api.siliconflow.cn}
+      api-key: ${SILICONFLOW_API_KEY:your-api-key}
       chat:
         options:
-          model: qwen3-max
-          temperature: 0.2
+          model: Pro/zai-org/GLM-5
+          temperature: 0.1
       embedding:
         options:
-          model: text-embedding-v4
+          model: Qwen/Qwen3-Embedding-8B
 
     vectorstore:
       milvus:
@@ -31,7 +31,7 @@ spring:
         content-field-name: content
         embedding-field-name: embedding
         metadata-field-name: metadata
-        embedding-dimension: ${EMBEDDING_DIMENSION:1024}
+        embedding-dimension: ${EMBEDDING_DIMENSION:4096}
         metric-type: cosine
         index-type: ivf-flat
         index-parameters: '{"nlist":1024}'
@@ -41,12 +41,19 @@ spring:
           username: ${MILVUS_USERNAME:root}
           password: ${MILVUS_PASSWORD:milvus}
 
+    mcp:
+      client:
+        type: SYNC
+        streamable-http:
+          connections:
+            tinyrag-server:
+              url: http://127.0.0.1:8081
+              endpoint: /mcp
+
 app:
   rag:
-    rewrite-model: qwen3-max
-    answer-model: qwen3-max
-    rerank-model: qwen3-rerank
-    rerank-endpoint: https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank
+    rerank-model: Qwen/Qwen3-Reranker-8B
+    rerank-endpoint: https://api.siliconflow.cn/v1/rerank
     retrieve-top-k: 8
     rerank-top-n: 4
     rerank-max-document-chars: 12000
