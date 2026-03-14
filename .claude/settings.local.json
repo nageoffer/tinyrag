@@ -13,7 +13,16 @@
       "WebFetch(domain:mydeveloperplanet.com)",
       "Bash(javap:*)",
       "Bash(curl:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(mkdir -p /tmp/spring-ai-inspect)",
+      "Read(//tmp/**)",
+      "Bash(ls:*)",
+      "Bash(xargs jar:*)",
+      "Bash(xargs sh:*)",
+      "Bash(unzip:*)",
+      "Bash(do echo:*)",
+      "Bash(xargs:*)",
+      "Bash(do:*)"
     ]
   }
 }

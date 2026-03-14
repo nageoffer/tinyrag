@@ -7,6 +7,7 @@ import com.nageoffer.ai.tinyrag.service.rag.ChatResponseUtils;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 import lombok.extern.slf4j.Slf4j;
@@ -41,10 +42,15 @@ public class RAGService {
     public SseEmitter streamChat(RAGRequest request) {
         SseEmitter emitter = new SseEmitter(0L);
 
+        String sessionId = StringUtils.hasText(request.getSessionId())
+                ? request.getSessionId()
+                : UUID.randomUUID().toString();
+
         taskExecutor.execute(() -> {
             try {
-                streamAnswer(request.getQuestion(), request.getKb(),
-                        rewrittenQuestion -> sendEvent(emitter, "meta", Map.of("rewrittenQuestion", rewrittenQuestion)),
+                streamAnswer(request.getQuestion(), request.getKb(), sessionId,
+                        rewrittenQuestion -> sendEvent(emitter, "meta",
+                                Map.of("rewrittenQuestion", rewrittenQuestion, "sessionId", sessionId)),
                         token -> sendEvent(emitter, "token", token));
 
                 sendEvent(emitter, "done", "[DONE]");
@@ -61,7 +67,7 @@ public class RAGService {
         return emitter;
     }
 
-    public void streamAnswer(String question, String kb,
+    public void streamAnswer(String question, String kb, String sessionId,
                              Consumer<String> rewrittenQuestionConsumer,
                              Consumer<String> tokenConsumer) {
         try {
@@ -83,6 +89,7 @@ public class RAGService {
                         VectorStoreDocumentRetriever.FILTER_EXPRESSION,
                         "kb == '" + escapeForFilter(kb) + "'"));
             }
+            requestSpec.advisors(spec -> spec.param("chat_memory_conversation_id", sessionId));
             if (StringUtils.hasText(ragProperties.getAnswerModel())) {
                 requestSpec.options(ChatOptions.builder()
                         .model(ragProperties.getAnswerModel())

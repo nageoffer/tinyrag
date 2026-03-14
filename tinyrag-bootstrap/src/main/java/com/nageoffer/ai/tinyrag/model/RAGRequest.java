@@ -12,4 +12,6 @@ public class RAGRequest {
     private String question;
 
     private String kb;
+
+    private String sessionId;
 }

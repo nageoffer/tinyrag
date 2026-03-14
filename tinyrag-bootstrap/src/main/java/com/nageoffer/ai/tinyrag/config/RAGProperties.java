@@ -51,4 +51,8 @@ public class RAGProperties {
     @Min(1)
     @Max(10000)
     private Integer maxNumChunks;
+
+    @Min(2)
+    @Max(100)
+    private Integer memoryMaxMessages = 20;
 }

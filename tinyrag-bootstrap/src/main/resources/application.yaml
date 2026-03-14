@@ -63,3 +63,4 @@ app:
     min-chunk-size-chars: 350
     min-chunk-length-to-embed: 10
     max-num-chunks: 1000
+    memory-max-messages: 20
