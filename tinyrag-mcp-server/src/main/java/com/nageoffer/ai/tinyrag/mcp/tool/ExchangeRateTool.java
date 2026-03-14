@@ -1,5 +1,6 @@
 package com.nageoffer.ai.tinyrag.mcp.tool;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,7 @@ import java.util.Map;
 /**
  * 汇率查询工具
  */
+@Slf4j
 @Component
 public class ExchangeRateTool {
 
@@ -40,6 +42,7 @@ public class ExchangeRateTool {
             @McpToolParam(required = false, description = "金额，默认为1")
             BigDecimal amount
     ) {
+        log.info("查询汇率：{} -> {}", from, to);
         String fromUpper = from.toUpperCase();
         String toUpper = to.toUpperCase();
         BigDecimal queryAmount = amount != null ? amount : BigDecimal.ONE;

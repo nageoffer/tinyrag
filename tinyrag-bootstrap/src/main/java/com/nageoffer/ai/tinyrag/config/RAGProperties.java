@@ -14,6 +14,10 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "app.rag")
 public class RAGProperties {
 
+    private String rewriteModel;
+
+    private String answerModel;
+
     @NotBlank
     private String rerankModel;
 

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(mvn:*)",
+      "Bash(export:*)",
+      "Bash(java:*)",
+      "Bash(echo:*)",
+      "Bash(/usr/libexec/java_home:*)",
+      "Bash(mvn dependency:get:*)",
+      "Bash(jar:*)",
+      "Bash(find:*)",
+      "WebFetch(domain:mydeveloperplanet.com)",
+      "Bash(javap:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)"
+    ]
+  }
+}

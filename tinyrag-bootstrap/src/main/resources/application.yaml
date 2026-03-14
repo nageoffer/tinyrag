@@ -16,7 +16,7 @@ spring:
       api-key: ${SILICONFLOW_API_KEY:your-api-key}
       chat:
         options:
-          model: Pro/zai-org/GLM-5
+          model: deepseek-ai/DeepSeek-V3.2
           temperature: 0.1
       embedding:
         options:
@@ -52,6 +52,8 @@ spring:
 
 app:
   rag:
+    rewrite-model: ${RAG_REWRITE_MODEL:}
+    answer-model: ${RAG_ANSWER_MODEL:}
     rerank-model: Qwen/Qwen3-Reranker-8B
     rerank-endpoint: https://api.siliconflow.cn/v1/rerank
     retrieve-top-k: 8
