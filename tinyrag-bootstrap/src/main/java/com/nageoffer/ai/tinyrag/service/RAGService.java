@@ -3,6 +3,7 @@ package com.nageoffer.ai.tinyrag.service;
 import com.nageoffer.ai.tinyrag.config.RAGProperties;
 import com.nageoffer.ai.tinyrag.model.RAGRequest;
 import com.nageoffer.ai.tinyrag.service.rag.QueryRewriteService;
+import com.nageoffer.ai.tinyrag.service.rag.ChatResponseUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -10,7 +11,6 @@ import java.util.function.Consumer;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -94,7 +94,7 @@ public class RAGService {
 
             // 3. 流式调用，逐 token 推送回答
             requestSpec.stream().chatClientResponse().toStream().forEach(chunk -> {
-                String token = extractContent(chunk);
+                String token = ChatResponseUtils.extractText(chunk);
                 if (StringUtils.hasText(token)) {
                     tokenConsumer.accept(token);
                 }
@@ -107,15 +107,6 @@ public class RAGService {
             log.error("[RAG] 问答过程出错", e);
             tokenConsumer.accept("处理问题时出错：" + e.getMessage());
         }
-    }
-
-    private String extractContent(ChatClientResponse response) {
-        if (response == null
-                || response.chatResponse() == null
-                || response.chatResponse().getResult() == null) {
-            return null;
-        }
-        return response.chatResponse().getResult().getOutput().getText();
     }
 
     private void sendEvent(SseEmitter emitter, String event, Object data) {

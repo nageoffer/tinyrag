@@ -42,7 +42,7 @@ public class QueryRewriteService {
 
             ChatClientResponse rewriteResponse = requestSpec.call().chatClientResponse();
 
-            String rewrite = extractContent(rewriteResponse);
+            String rewrite = ChatResponseUtils.extractText(rewriteResponse);
             String finalRewritten = StringUtils.hasText(rewrite) ? rewrite.trim() : question;
             log.info("重写后问题: {}", finalRewritten);
             return finalRewritten;
@@ -60,14 +60,5 @@ public class QueryRewriteService {
             builder.model(rewriteModel);
         }
         return builder.build();
-    }
-
-    private String extractContent(ChatClientResponse response) {
-        if (response == null
-                || response.chatResponse() == null
-                || response.chatResponse().getResult() == null) {
-            return null;
-        }
-        return response.chatResponse().getResult().getOutput().getText();
     }
 }

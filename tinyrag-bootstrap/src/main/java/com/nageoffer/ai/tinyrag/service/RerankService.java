@@ -20,9 +20,10 @@ import org.springframework.web.client.RestClient;
 @Service
 public class RerankService {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final RAGProperties ragProperties;
     private final RestClient restClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final String apiKey;
 
     public RerankService(RAGProperties ragProperties,
@@ -70,7 +71,7 @@ public class RerankService {
             return null;
         }
         try {
-            return objectMapper.readTree(responseBody);
+            return OBJECT_MAPPER.readTree(responseBody);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Rerank response parse failed", ex);
         }

@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
@@ -21,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
+@Slf4j
 @Service
 public class KnowledgeIngestionService {
 
@@ -40,18 +42,23 @@ public class KnowledgeIngestionService {
         String fileName = normalizeFileName(file.getOriginalFilename());
         validateFileType(fileName);
         String kbName = normalizeKb(kb);
+
+        log.info("[Ingest] 开始处理文件: {}, kb={}", fileName, kbName);
         String content = parseContentWithTika(file);
 
         if (!StringUtils.hasText(content)) {
             throw new ResponseStatusException(BAD_REQUEST, "上传文件内容为空");
         }
+        log.info("[Ingest] Tika 解析完成, 内容长度: {} 字符", content.length());
 
         List<Document> chunks = splitToDocuments(content, fileName, kbName);
         if (chunks.isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "文件切分后无有效文本");
         }
+        log.info("[Ingest] 文本切分完成, 共 {} 个 chunk", chunks.size());
 
         vectorStore.add(chunks);
+        log.info("[Ingest] 入库完成: file={}, kb={}, chunks={}", fileName, kbName, chunks.size());
         return new UploadResponse(fileName, kbName, chunks.size());
     }
 
@@ -72,17 +79,12 @@ public class KnowledgeIngestionService {
         for (int i = 0; i < splitDocs.size(); i++) {
             Document doc = splitDocs.get(i);
             Map<String, Object> metadata = new HashMap<>(doc.getMetadata());
-            metadata.put("source", fileName);
-            metadata.put("filename", fileName);
-            metadata.put("kb", kb);
-            metadata.put("file_type", extension);
             metadata.put("chunk_index", i);
 
-            Document withMetadata = Document.builder()
+            chunks.add(Document.builder()
                     .text(doc.getText())
                     .metadata(metadata)
-                    .build();
-            chunks.add(withMetadata);
+                    .build());
         }
 
         return chunks;
