@@ -9,13 +9,15 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
+import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
+import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
@@ -41,10 +43,35 @@ public class RAGConfiguration {
     }
 
     @Bean
-    public ChatClient toolAwareChatClient(ChatModel chatModel,
-                                          ToolCallback[] toolCallbacks) {
+    public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(
+            VectorStore vectorStore,
+            RAGProperties ragProperties,
+            List<DocumentPostProcessor> documentPostProcessors,
+            @Value("classpath:/prompts/answer-user.st") Resource ragAugmentPrompt) {
+        ContextualQueryAugmenter queryAugmenter = ContextualQueryAugmenter.builder()
+                .promptTemplate(new PromptTemplate(ragAugmentPrompt))
+                .allowEmptyContext(true)
+                .build();
+
+        return RetrievalAugmentationAdvisor.builder()
+                .documentRetriever(VectorStoreDocumentRetriever.builder()
+                        .vectorStore(vectorStore)
+                        .topK(ragProperties.getRetrieveTopK())
+                        .build())
+                .documentPostProcessors(documentPostProcessors)
+                .queryAugmenter(queryAugmenter)
+                .build();
+    }
+
+    @Bean
+    public ChatClient chatClient(ChatModel chatModel,
+                                 ToolCallback[] toolCallbacks,
+                                 RetrievalAugmentationAdvisor retrievalAugmentationAdvisor,
+                                 @Value("classpath:/prompts/answer-system.st") Resource answerSystemPrompt) {
         return ChatClient.builder(chatModel)
+                .defaultSystem(answerSystemPrompt)
                 .defaultToolCallbacks(toolCallbacks)
+                .defaultAdvisors(retrievalAugmentationAdvisor)
                 .build();
     }
 
@@ -75,15 +102,6 @@ public class RAGConfiguration {
                 rewriteSystemPrompt,
                 rewriteUserPrompt,
                 ragProperties.getRewriteModel());
-    }
-
-    @Bean
-    public DocumentRetriever documentRetriever(VectorStore vectorStore, RAGProperties ragProperties) {
-        return VectorStoreDocumentRetriever.builder()
-                .vectorStore(vectorStore)
-                .topK(ragProperties.getRetrieveTopK())
-                .similarityThreshold(0.0)
-                .build();
     }
 
     @Bean

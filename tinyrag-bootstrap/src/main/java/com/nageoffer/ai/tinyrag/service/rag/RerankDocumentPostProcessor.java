@@ -17,6 +17,9 @@ import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
 import org.springframework.stereotype.Component;
 
+/**
+ * Rerank 后处理器：调用外部 Rerank API 对检索文档重排序
+ */
 @Slf4j
 @Component
 public class RerankDocumentPostProcessor implements DocumentPostProcessor {
@@ -36,6 +39,7 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
         }
 
         int safeTopN = Math.max(1, ragProperties.getRerankTopN());
+
         List<Document> validCandidates = new ArrayList<>();
         List<String> candidateTexts = new ArrayList<>();
         for (Document document : documents) {
@@ -55,13 +59,16 @@ public class RerankDocumentPostProcessor implements DocumentPostProcessor {
             List<RerankItem> rerankResults = rerankService.rerank(query.text(), candidateTexts, safeTopN);
             List<Document> reranked = pickByRerankResults(validCandidates, rerankResults, safeTopN);
             if (!reranked.isEmpty()) {
+                log.info("[Rerank] {} 个文档 → Rerank 后保留 {} 个", documents.size(), reranked.size());
                 return reranked;
             }
         } catch (Exception ex) {
-            log.warn("Rerank failed, fallback to vector score. reason={}", ex.getMessage());
+            log.warn("[Rerank] 失败, 降级为向量分数排序. reason={}", ex.getMessage());
         }
 
-        return fallbackByVectorScore(validCandidates, safeTopN);
+        List<Document> fallback = fallbackByVectorScore(validCandidates, safeTopN);
+        log.info("[Rerank] 降级排序后保留 {} 个文档", fallback.size());
+        return fallback;
     }
 
     private List<Document> pickByRerankResults(List<Document> candidates, List<RerankItem> results, int topN) {

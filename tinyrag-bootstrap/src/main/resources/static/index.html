@@ -334,15 +334,6 @@
             font-weight: 600;
         }
 
-        .refs-list {
-            margin: 0;
-            padding-left: 18px;
-        }
-
-        .refs-list li {
-            margin: 4px 0;
-        }
-
         .toast {
             position: fixed;
             right: 20px;
@@ -438,10 +429,6 @@
                     <div id="rewritten" class="panel">尚未请求</div>
                 </div>
                 <div class="col-12">
-                    <label>命中来源</label>
-                    <div id="refs" class="panel">尚未请求</div>
-                </div>
-                <div class="col-12">
                     <label>模型回答（流式）</label>
                     <div id="answer" class="panel answer-panel"></div>
                 </div>
@@ -475,7 +462,6 @@
     const stopBtn = document.getElementById('stopBtn');
     const clearBtn = document.getElementById('clearBtn');
     const rewrittenEl = document.getElementById('rewritten');
-    const refsEl = document.getElementById('refs');
     const answerEl = document.getElementById('answer');
 
     let currentAbortController = null;
@@ -661,7 +647,6 @@
 
     function clearChatPanels() {
         rewrittenEl.textContent = '尚未请求';
-        refsEl.textContent = '尚未请求';
         answerEl.textContent = '';
     }
 
@@ -669,16 +654,6 @@
         if (eventName === 'meta') {
             const data = safeJsonParse(dataRaw);
             rewrittenEl.textContent = data?.rewrittenQuestion || dataRaw || '无';
-            return;
-        }
-
-        if (eventName === 'refs') {
-            const data = safeJsonParse(dataRaw);
-            if (data && Array.isArray(data.references) && data.references.length) {
-                refsEl.innerHTML = `<ul class="refs-list">${data.references.map((item) => `<li>${escapeHtml(String(item))}</li>`).join('')}</ul>`;
-            } else {
-                refsEl.textContent = '未返回来源';
-            }
             return;
         }
 
