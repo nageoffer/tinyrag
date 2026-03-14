@@ -201,8 +201,6 @@ public class RAGService {
                 || response.chatResponse() == null
                 || response.chatResponse().getResult() == null) {
             return null;
-        } else {
-            response.chatResponse().getResult();
         }
         return response.chatResponse().getResult().getOutput().getText();
     }
