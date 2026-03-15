@@ -22,7 +22,10 @@
       "Bash(unzip:*)",
       "Bash(do echo:*)",
       "Bash(xargs:*)",
-      "Bash(do:*)"
+      "Bash(do:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:piotrminkowski.com)",
+      "WebFetch(domain:medium.com)"
     ]
   }
 }

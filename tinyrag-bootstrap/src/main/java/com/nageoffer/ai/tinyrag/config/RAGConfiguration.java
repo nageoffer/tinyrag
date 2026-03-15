@@ -1,6 +1,6 @@
 package com.nageoffer.ai.tinyrag.config;
 
-import com.nageoffer.ai.tinyrag.service.rag.QueryRewriteService;
+import com.nageoffer.ai.tinyrag.service.rag.RewriteQueryTransformer;
 import com.nageoffer.ai.tinyrag.service.rag.NonReturnDirectToolCallback;
 
 import io.modelcontextprotocol.client.McpSyncClient;
@@ -58,6 +58,7 @@ public class RAGConfiguration {
     public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(
             VectorStore vectorStore,
             RAGProperties ragProperties,
+            RewriteQueryTransformer rewriteQueryTransformer,
             List<DocumentPostProcessor> documentPostProcessors,
             @Value("classpath:/prompts/answer-user.st") Resource ragAugmentPrompt) {
         ContextualQueryAugmenter queryAugmenter = ContextualQueryAugmenter.builder()
@@ -66,6 +67,7 @@ public class RAGConfiguration {
                 .build();
 
         return RetrievalAugmentationAdvisor.builder()
+                .queryTransformers(rewriteQueryTransformer)
                 .documentRetriever(VectorStoreDocumentRetriever.builder()
                         .vectorStore(vectorStore)
                         .topK(ragProperties.getRetrieveTopK())
@@ -106,12 +108,12 @@ public class RAGConfiguration {
     }
 
     @Bean
-    public QueryRewriteService queryRewriteService(
+    public RewriteQueryTransformer rewriteQueryTransformer(
             ChatModel chatModel,
             RAGProperties ragProperties,
             @Value("classpath:/prompts/rewrite-system.st") Resource rewriteSystemPrompt,
             @Value("classpath:/prompts/rewrite-user.st") Resource rewriteUserPrompt) {
-        return new QueryRewriteService(
+        return new RewriteQueryTransformer(
                 chatModel,
                 rewriteSystemPrompt,
                 rewriteUserPrompt,
