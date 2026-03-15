@@ -5,9 +5,9 @@ import com.nageoffer.ai.tinyrag.model.RAGRequest;
 import com.nageoffer.ai.tinyrag.service.rag.ChatResponseUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import lombok.extern.slf4j.Slf4j;
@@ -57,21 +57,21 @@ public class RAGService {
         String sessionId = newSession
                 ? UUID.randomUUID().toString()
                 : request.getSessionId();
+        log.info("[RAG] sessionId={}, newSession={}, rawSessionId=[{}]", sessionId, newSession, request.getSessionId());
 
         taskExecutor.execute(() -> {
             try {
-                // 新会话第一次提问：生成会话标题
-                String sessionTitle = null;
-                if (newSession) {
-                    sessionTitle = generateTitle(request.getQuestion());
-                }
+                // 立即发送 meta（sessionId），不等标题生成
+                sendEvent(emitter, "meta", Map.of("sessionId", sessionId));
 
-                Map<String, String> meta = new HashMap<>();
-                meta.put("sessionId", sessionId);
-                if (sessionTitle != null) {
-                    meta.put("sessionTitle", sessionTitle);
+                // 新会话：异步生成标题，生成完单独推送
+                if (newSession) {
+                    CompletableFuture.supplyAsync(() -> generateTitle(request.getQuestion()), taskExecutor)
+                            .thenAccept(title -> {
+                                log.info("[RAG] 会话标题: {}", title);
+                                sendEvent(emitter, "title", Map.of("sessionTitle", title));
+                            });
                 }
-                sendEvent(emitter, "meta", meta);
 
                 streamAnswer(request.getQuestion(), request.getKb(), sessionId,
                         token -> sendEvent(emitter, "token", token));

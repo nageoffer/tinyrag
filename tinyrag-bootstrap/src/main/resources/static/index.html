@@ -673,6 +673,11 @@
                 currentSessionId = data.sessionId;
                 sessionHint.textContent = '当前会话：' + currentSessionId.slice(0, 8) + '...';
             }
+            return;
+        }
+
+        if (eventName === 'title') {
+            const data = safeJsonParse(dataRaw);
             if (data?.sessionTitle) {
                 sessionTitleEl.textContent = data.sessionTitle;
             }
