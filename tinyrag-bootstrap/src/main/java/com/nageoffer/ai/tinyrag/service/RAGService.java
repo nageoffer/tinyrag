@@ -40,7 +40,7 @@ public class RAGService {
     }
 
     public SseEmitter streamChat(RAGRequest request) {
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(180000L);
 
         String sessionId = StringUtils.hasText(request.getSessionId())
                 ? request.getSessionId()
@@ -84,12 +84,12 @@ public class RAGService {
             ChatClient.ChatClientRequestSpec requestSpec = chatClient.prompt()
                     .user(rewritten);
 
+            requestSpec.advisors(spec -> spec.param("chat_memory_conversation_id", sessionId));
             if (StringUtils.hasText(kb)) {
                 requestSpec.advisors(spec -> spec.param(
                         VectorStoreDocumentRetriever.FILTER_EXPRESSION,
                         "kb == '" + escapeForFilter(kb) + "'"));
             }
-            requestSpec.advisors(spec -> spec.param("chat_memory_conversation_id", sessionId));
             if (StringUtils.hasText(ragProperties.getAnswerModel())) {
                 requestSpec.options(ChatOptions.builder()
                         .model(ragProperties.getAnswerModel())
