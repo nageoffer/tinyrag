@@ -653,14 +653,16 @@
     }
 
     function clearChatPanels() {
-        sessionTitleEl.textContent = '新对话';
+        if (!currentSessionId) {
+            sessionTitleEl.textContent = '新对话';
+        }
         answerEl.textContent = '';
     }
 
     function startNewChat() {
         stopStreaming();
-        clearChatPanels();
         currentSessionId = null;
+        clearChatPanels();
         sessionHint.textContent = '当前会话：新对话（尚未开始）';
         document.getElementById('chatQuestion').value = '';
         showToast('已开启新对话');
