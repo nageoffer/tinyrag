@@ -421,7 +421,9 @@
                 <button id="askBtn" class="btn-primary" type="button">开始问答</button>
                 <button id="stopBtn" class="btn-danger" type="button">停止</button>
                 <button id="clearBtn" class="btn-secondary" type="button">清空输出</button>
+                <button id="newChatBtn" class="btn-secondary" type="button">+ 新建对话</button>
             </div>
+            <p id="sessionHint" class="helper-text">当前会话：新对话（尚未开始）</p>
 
             <div class="grid">
                 <div class="col-12">
@@ -461,11 +463,14 @@
     const askBtn = document.getElementById('askBtn');
     const stopBtn = document.getElementById('stopBtn');
     const clearBtn = document.getElementById('clearBtn');
+    const newChatBtn = document.getElementById('newChatBtn');
     const rewrittenEl = document.getElementById('rewritten');
     const answerEl = document.getElementById('answer');
+    const sessionHint = document.getElementById('sessionHint');
 
     let currentAbortController = null;
     let toastTimer = null;
+    let currentSessionId = null;
 
     menuItems.forEach((item) => item.addEventListener('click', () => switchPage(item.dataset.page)));
 
@@ -491,6 +496,7 @@
     askBtn.addEventListener('click', startChatStream);
     stopBtn.addEventListener('click', stopStreaming);
     clearBtn.addEventListener('click', clearChatPanels);
+    newChatBtn.addEventListener('click', startNewChat);
 
     function switchPage(pageName) {
         menuItems.forEach((item) => item.classList.toggle('active', item.dataset.page === pageName));
@@ -611,7 +617,8 @@
                 },
                 body: JSON.stringify({
                     question: question,
-                    kb: kb || null
+                    kb: kb || null,
+                    sessionId: currentSessionId
                 }),
                 signal: currentAbortController.signal
             });
@@ -650,10 +657,23 @@
         answerEl.textContent = '';
     }
 
+    function startNewChat() {
+        stopStreaming();
+        clearChatPanels();
+        currentSessionId = null;
+        sessionHint.textContent = '当前会话：新对话（尚未开始）';
+        document.getElementById('chatQuestion').value = '';
+        showToast('已开启新对话');
+    }
+
     function onSseEvent(eventName, dataRaw) {
         if (eventName === 'meta') {
             const data = safeJsonParse(dataRaw);
             rewrittenEl.textContent = data?.rewrittenQuestion || dataRaw || '无';
+            if (data?.sessionId) {
+                currentSessionId = data.sessionId;
+                sessionHint.textContent = '当前会话：' + currentSessionId.slice(0, 8) + '...';
+            }
             return;
         }
 
