@@ -1,5 +1,6 @@
 package com.nageoffer.ai.tinyrag.mcp.tool;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import java.util.Random;
 /**
  * 天气查询工具
  */
+@Slf4j
 @Component
 public class WeatherTool {
 
@@ -30,6 +32,7 @@ public class WeatherTool {
             @McpToolParam(required = false, description = "查询天数，1-7天，默认为1天")
             Integer days
     ) {
+        log.info("查询 {} 未来 {} 天的天气预报", location, days);
         int queryDays = days != null ? days : 1;
 
         if (queryDays < 1 || queryDays > 7) {

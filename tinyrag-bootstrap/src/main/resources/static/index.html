@@ -355,6 +355,29 @@
             opacity: 1;
             transform: translateY(0);
         }
+
+        .suggestions-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .suggestion-btn {
+            background: var(--primary-soft);
+            color: var(--primary);
+            border: 1px solid #bcd2ff;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all .2s ease;
+        }
+
+        .suggestion-btn:hover {
+            background: #dbeafe;
+            border-color: #93bbfd;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -401,7 +424,7 @@
                 <button id="uploadBtn" class="btn-primary" type="button">上传并向量化</button>
                 <button id="clearUploadBtn" class="btn-secondary" type="button">清空选择</button>
             </div>
-            <p class="helper-text">上传后会自动通过 Apache Tika 提取文本并按固定 Chunk 切分后写入 Milvus。</p>
+            <p class="helper-text">上传后会自动通过 Apache Tika 提取文本并按固定 Chunk 切分后写入 PgVector。</p>
             <div id="uploadResult" class="panel">等待上传...</div>
         </section>
 
@@ -433,6 +456,10 @@
                 <div class="col-12">
                     <label>模型回答（流式）</label>
                     <div id="answer" class="panel answer-panel"></div>
+                </div>
+                <div class="col-12" id="suggestionsSection" style="display:none">
+                    <label>推荐问题</label>
+                    <div id="suggestions" class="suggestions-container"></div>
                 </div>
             </div>
         </section>
@@ -657,6 +684,37 @@
             sessionTitleEl.textContent = '新对话';
         }
         answerEl.textContent = '';
+        document.getElementById('suggestionsSection').style.display = 'none';
+        document.getElementById('suggestions').innerHTML = '';
+    }
+
+    function renderSuggestions(questions) {
+        const section = document.getElementById('suggestionsSection');
+        const container = document.getElementById('suggestions');
+        container.innerHTML = '';
+        questions.forEach(q => {
+            const btn = document.createElement('button');
+            btn.className = 'suggestion-btn';
+            btn.textContent = q;
+            btn.type = 'button';
+            btn.addEventListener('click', () => {
+                document.getElementById('chatQuestion').value = q;
+                startChatStream();
+            });
+            container.appendChild(btn);
+        });
+        section.style.display = '';
+    }
+
+    function renderSuggestionsFallback(text) {
+        const section = document.getElementById('suggestionsSection');
+        const container = document.getElementById('suggestions');
+        container.innerHTML = '';
+        const span = document.createElement('span');
+        span.style.cssText = 'color: var(--muted); font-size: 13px;';
+        span.textContent = text;
+        container.appendChild(span);
+        section.style.display = '';
     }
 
     function startNewChat() {
@@ -698,6 +756,16 @@
 
         if (eventName === 'error') {
             answerEl.textContent += `\n[错误] ${dataRaw}`;
+            return;
+        }
+
+        if (eventName === 'suggestions') {
+            const data = safeJsonParse(dataRaw);
+            if (data?.questions?.length) {
+                renderSuggestions(data.questions);
+            } else if (data?.fallback) {
+                renderSuggestionsFallback(data.fallback);
+            }
             return;
         }
 

@@ -5,9 +5,11 @@ import com.nageoffer.ai.tinyrag.model.RAGRequest;
 import com.nageoffer.ai.tinyrag.service.rag.ChatResponseUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import lombok.extern.slf4j.Slf4j;
@@ -35,19 +37,22 @@ public class RAGService {
     private final Resource titleSystemPrompt;
     private final Resource titleUserPrompt;
     private final TaskExecutor taskExecutor;
+    private final SuggestionService suggestionService;
 
     public RAGService(ChatClient chatClient,
                       ChatModel chatModel,
                       RAGProperties ragProperties,
                       @Value("classpath:/prompts/title-system.st") Resource titleSystemPrompt,
                       @Value("classpath:/prompts/title-user.st") Resource titleUserPrompt,
-                      @Qualifier("ragTaskExecutor") TaskExecutor taskExecutor) {
+                      @Qualifier("ragTaskExecutor") TaskExecutor taskExecutor,
+                      SuggestionService suggestionService) {
         this.chatClient = chatClient;
         this.titleClient = ChatClient.builder(chatModel).build();
         this.ragProperties = ragProperties;
         this.titleSystemPrompt = titleSystemPrompt;
         this.titleUserPrompt = titleUserPrompt;
         this.taskExecutor = taskExecutor;
+        this.suggestionService = suggestionService;
     }
 
     public SseEmitter streamChat(RAGRequest request) {
@@ -73,9 +78,14 @@ public class RAGService {
                             });
                 }
 
+                // 并行生成推荐问题（生成与回答同时进行，但推送在回答完成后）
+                CompletableFuture<List<String>> suggestionsFuture = CompletableFuture
+                        .supplyAsync(() -> suggestionService.generate(request.getQuestion(), request.getKb()), taskExecutor);
+
                 streamAnswer(request.getQuestion(), request.getKb(), sessionId,
                         token -> sendEvent(emitter, "token", token));
 
+                pushSuggestions(emitter, suggestionsFuture);
                 sendEvent(emitter, "done", "[DONE]");
                 emitter.complete();
             } catch (RuntimeException ex) {
@@ -136,6 +146,22 @@ public class RAGService {
             }
             log.error("[RAG] 问答过程出错", e);
             tokenConsumer.accept("处理问题时出错：" + e.getMessage());
+        }
+    }
+
+    private void pushSuggestions(SseEmitter emitter, CompletableFuture<List<String>> suggestionsFuture) {
+        List<String> suggestions;
+        try {
+            suggestions = suggestionsFuture.get(15, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            log.warn("[RAG] 推荐问题获取失败: {}", ex.getMessage());
+            suggestions = List.of();
+        }
+        if (suggestions.isEmpty()) {
+            sendEvent(emitter, "suggestions", Map.of("fallback", "暂无推荐问题"));
+        } else {
+            log.info("[RAG] 推荐问题: {}", suggestions);
+            sendEvent(emitter, "suggestions", Map.of("questions", suggestions));
         }
     }
 
