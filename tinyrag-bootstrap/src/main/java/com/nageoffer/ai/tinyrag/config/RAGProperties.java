@@ -55,4 +55,16 @@ public class RAGProperties {
     @Min(2)
     @Max(100)
     private Integer memoryMaxMessages = 20;
+
+    @Min(1)
+    @Max(100)
+    private Integer keywordTopK = 8;
+
+    @Min(1)
+    @Max(200)
+    private Integer rrfK = 60;
+
+    private String esAnalyzer = "standard";
+
+    private String esUrl = "http://localhost:9200";
 }

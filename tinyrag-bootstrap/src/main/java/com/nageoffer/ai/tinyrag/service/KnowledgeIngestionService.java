@@ -1,6 +1,7 @@
 package com.nageoffer.ai.tinyrag.service;
 
 import com.nageoffer.ai.tinyrag.model.UploadResponse;
+import com.nageoffer.ai.tinyrag.service.rag.ElasticsearchDocumentRepository;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.springframework.ai.document.Document;
@@ -24,6 +26,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class KnowledgeIngestionService {
 
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("pdf", "doc", "docx", "md", "markdown");
@@ -31,12 +34,7 @@ public class KnowledgeIngestionService {
     private final VectorStore vectorStore;
     private final TokenTextSplitter tokenTextSplitter;
     private final Tika tika;
-
-    public KnowledgeIngestionService(VectorStore vectorStore, TokenTextSplitter tokenTextSplitter, Tika tika) {
-        this.vectorStore = vectorStore;
-        this.tokenTextSplitter = tokenTextSplitter;
-        this.tika = tika;
-    }
+    private final ElasticsearchDocumentRepository esRepository;
 
     public UploadResponse ingest(MultipartFile file, String kb) {
         String fileName = normalizeFileName(file.getOriginalFilename());
@@ -58,6 +56,7 @@ public class KnowledgeIngestionService {
         log.info("[Ingest] 文本切分完成, 共 {} 个 chunk", chunks.size());
 
         vectorStore.add(chunks);
+        esRepository.indexDocuments(chunks);
         log.info("[Ingest] 入库完成: file={}, kb={}, chunks={}", fileName, kbName, chunks.size());
         return new UploadResponse(fileName, kbName, chunks.size());
     }

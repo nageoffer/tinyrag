@@ -59,3 +59,7 @@ app:
     min-chunk-length-to-embed: 10
     max-num-chunks: 1000
     memory-max-messages: 20
+    keyword-top-k: 8
+    rrf-k: 60
+    es-analyzer: ${ES_ANALYZER:ik_smart}
+    es-url: ${ELASTICSEARCH_URL:http://localhost:9200}

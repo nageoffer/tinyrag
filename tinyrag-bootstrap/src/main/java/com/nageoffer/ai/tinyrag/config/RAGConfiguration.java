@@ -1,5 +1,8 @@
 package com.nageoffer.ai.tinyrag.config;
 
+import com.nageoffer.ai.tinyrag.service.rag.ElasticsearchDocumentRepository;
+import com.nageoffer.ai.tinyrag.service.rag.HybridDocumentRetriever;
+import com.nageoffer.ai.tinyrag.service.rag.KeywordDocumentRetriever;
 import com.nageoffer.ai.tinyrag.service.rag.RewriteQueryTransformer;
 import com.nageoffer.ai.tinyrag.service.rag.NonReturnDirectToolCallback;
 
@@ -55,9 +58,27 @@ public class RAGConfiguration {
     }
 
     @Bean
-    public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(
+    public KeywordDocumentRetriever keywordDocumentRetriever(
+            ElasticsearchDocumentRepository esRepository,
+            RAGProperties ragProperties) {
+        return new KeywordDocumentRetriever(esRepository, ragProperties);
+    }
+
+    @Bean
+    public HybridDocumentRetriever hybridDocumentRetriever(
             VectorStore vectorStore,
-            RAGProperties ragProperties,
+            KeywordDocumentRetriever keywordDocumentRetriever,
+            RAGProperties ragProperties) {
+        VectorStoreDocumentRetriever vectorRetriever = VectorStoreDocumentRetriever.builder()
+                .vectorStore(vectorStore)
+                .topK(ragProperties.getRetrieveTopK())
+                .build();
+        return new HybridDocumentRetriever(vectorRetriever, keywordDocumentRetriever, ragProperties);
+    }
+
+    @Bean
+    public RetrievalAugmentationAdvisor retrievalAugmentationAdvisor(
+            HybridDocumentRetriever hybridDocumentRetriever,
             RewriteQueryTransformer rewriteQueryTransformer,
             List<DocumentPostProcessor> documentPostProcessors,
             @Value("classpath:/prompts/answer-user.st") Resource ragAugmentPrompt) {
@@ -68,10 +89,7 @@ public class RAGConfiguration {
 
         return RetrievalAugmentationAdvisor.builder()
                 .queryTransformers(rewriteQueryTransformer)
-                .documentRetriever(VectorStoreDocumentRetriever.builder()
-                        .vectorStore(vectorStore)
-                        .topK(ragProperties.getRetrieveTopK())
-                        .build())
+                .documentRetriever(hybridDocumentRetriever)
                 .documentPostProcessors(documentPostProcessors)
                 .queryAugmenter(queryAugmenter)
                 .build();
