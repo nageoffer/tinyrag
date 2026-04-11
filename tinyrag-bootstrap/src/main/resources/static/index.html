@@ -378,6 +378,40 @@
             border-color: #93bbfd;
             transform: translateY(-1px);
         }
+
+        .sources-container {
+            display: grid;
+            gap: 10px;
+        }
+
+        .source-card {
+            border: 1px solid #dbe3f1;
+            border-radius: 10px;
+            background: #f8fafc;
+            padding: 10px 12px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .source-card-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 12px;
+        }
+
+        .source-card-header .badge {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
     </style>
 </head>
 <body>
@@ -456,6 +490,10 @@
                 <div class="col-12">
                     <label>模型回答（流式）</label>
                     <div id="answer" class="panel answer-panel"></div>
+                </div>
+                <div class="col-12" id="sourcesSection" style="display:none">
+                    <label>依据文档</label>
+                    <div id="sources" class="sources-container"></div>
                 </div>
                 <div class="col-12" id="suggestionsSection" style="display:none">
                     <label>推荐问题</label>
@@ -684,6 +722,8 @@
             sessionTitleEl.textContent = '新对话';
         }
         answerEl.textContent = '';
+        document.getElementById('sourcesSection').style.display = 'none';
+        document.getElementById('sources').innerHTML = '';
         document.getElementById('suggestionsSection').style.display = 'none';
         document.getElementById('suggestions').innerHTML = '';
     }
@@ -702,6 +742,41 @@
                 startChatStream();
             });
             container.appendChild(btn);
+        });
+        section.style.display = '';
+    }
+
+    function renderSources(documents) {
+        const section = document.getElementById('sourcesSection');
+        const container = document.getElementById('sources');
+        container.innerHTML = '';
+        documents.forEach((doc, i) => {
+            const card = document.createElement('div');
+            card.className = 'source-card';
+
+            const header = document.createElement('div');
+            header.className = 'source-card-header';
+
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = '来源 ' + (i + 1);
+            header.appendChild(badge);
+
+            if (doc.source) {
+                const name = document.createElement('span');
+                name.textContent = doc.source;
+                header.appendChild(name);
+            }
+
+            if (doc.chunkCount > 1) {
+                const count = document.createElement('span');
+                count.style.cssText = 'color: var(--muted); font-size: 11px;';
+                count.textContent = '命中 ' + doc.chunkCount + ' 个片段';
+                header.appendChild(count);
+            }
+
+            card.appendChild(header);
+            container.appendChild(card);
         });
         section.style.display = '';
     }
@@ -756,6 +831,14 @@
 
         if (eventName === 'error') {
             answerEl.textContent += `\n[错误] ${dataRaw}`;
+            return;
+        }
+
+        if (eventName === 'sources') {
+            const data = safeJsonParse(dataRaw);
+            if (data?.documents?.length) {
+                renderSources(data.documents);
+            }
             return;
         }
 

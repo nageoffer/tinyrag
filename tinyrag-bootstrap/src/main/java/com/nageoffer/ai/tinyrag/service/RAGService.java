@@ -1,16 +1,23 @@
 package com.nageoffer.ai.tinyrag.service;
 
+import cn.hutool.core.collection.CollUtil;
 import com.nageoffer.ai.tinyrag.config.RAGProperties;
 import com.nageoffer.ai.tinyrag.model.RAGRequest;
 import com.nageoffer.ai.tinyrag.service.rag.ChatResponseUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import org.springframework.ai.document.Document;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -66,7 +73,6 @@ public class RAGService {
 
         taskExecutor.execute(() -> {
             try {
-                // 立即发送 meta（sessionId），不等标题生成
                 sendEvent(emitter, "meta", Map.of("sessionId", sessionId));
 
                 // 新会话：异步生成标题，生成完单独推送
@@ -78,13 +84,13 @@ public class RAGService {
                             });
                 }
 
-                // 并行生成推荐问题（生成与回答同时进行，但推送在回答完成后）
                 CompletableFuture<List<String>> suggestionsFuture = CompletableFuture
                         .supplyAsync(() -> suggestionService.generate(request.getQuestion(), request.getKb()), taskExecutor);
 
-                streamAnswer(request.getQuestion(), request.getKb(), sessionId,
+                List<Document> sources = streamAnswer(request.getQuestion(), request.getKb(), sessionId,
                         token -> sendEvent(emitter, "token", token));
 
+                pushSources(emitter, sources);
                 pushSuggestions(emitter, suggestionsFuture);
                 sendEvent(emitter, "done", "[DONE]");
                 emitter.complete();
@@ -103,14 +109,31 @@ public class RAGService {
         return emitter;
     }
 
-    public void streamAnswer(String question, String kb, String sessionId,
-                             Consumer<String> tokenConsumer) {
+    private void pushSources(SseEmitter emitter, List<Document> sources) {
+        if (!sources.isEmpty()) {
+            LinkedHashMap<String, Map<String, Object>> grouped = new LinkedHashMap<>();
+            for (Document doc : sources) {
+                String fileName = String.valueOf(doc.getMetadata().getOrDefault("source", "未知来源"));
+                grouped.computeIfAbsent(fileName, k -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("source", fileName);
+                    item.put("kb", String.valueOf(doc.getMetadata().getOrDefault("kb", "")));
+                    item.put("chunkCount", 0);
+                    return item;
+                });
+                grouped.get(fileName).merge("chunkCount", 1, (a, b) -> (int) a + (int) b);
+            }
+            sendEvent(emitter, "sources", Map.of("documents", List.copyOf(grouped.values())));
+        }
+    }
+
+    public List<Document> streamAnswer(String question, String kb, String sessionId,
+                                       Consumer<String> tokenConsumer) {
+        List<Document> sources = new ArrayList<>();
         try {
             long startTime = System.currentTimeMillis();
             log.info("[RAG] 原始问题: {}", question);
 
-            // ChatClient 已全局配置 Advisor(QueryTransformer→检索→Rerank→上下文增强) + MCP 工具
-            // QueryTransformer 负责将问题改写后用于向量检索，LLM 接收用户原始问题
             ChatClient.ChatClientRequestSpec requestSpec = chatClient.prompt()
                     .user(question);
 
@@ -129,8 +152,15 @@ public class RAGService {
             log.info("[RAG] 开始流式调用 LLM...");
             long llmStartTime = System.currentTimeMillis();
 
-            // 流式调用，逐 token 推送回答
             requestSpec.stream().chatClientResponse().toStream().forEach(chunk -> {
+                if (CollUtil.isEmpty(sources)) {
+                    @SuppressWarnings("unchecked")
+                    List<Document> docs = (List<Document>) chunk.context()
+                            .get(RetrievalAugmentationAdvisor.DOCUMENT_CONTEXT);
+                    if (CollUtil.isNotEmpty(docs)) {
+                        sources.addAll(docs);
+                    }
+                }
                 String token = ChatResponseUtils.extractText(chunk);
                 if (StringUtils.hasText(token)) {
                     tokenConsumer.accept(token);
@@ -147,6 +177,8 @@ public class RAGService {
             log.error("[RAG] 问答过程出错", e);
             tokenConsumer.accept("处理问题时出错：" + e.getMessage());
         }
+
+        return sources;
     }
 
     private void pushSuggestions(SseEmitter emitter, CompletableFuture<List<String>> suggestionsFuture) {
